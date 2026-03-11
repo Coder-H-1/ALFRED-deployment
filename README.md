@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # A.L.F.R.E.D  
 **Automated Limited Functionality Responsive Educational Development (system). or A.L.F.R.E.D.**
 
@@ -175,7 +174,7 @@ Users are responsible for the commands executed by the system.
 ## 📌 Status
 
     Active Development / Experimental
+    
 =======
 # ALFRED-deployment
-Alfred modified using AntiGravity ADE,  
->>>>>>> df1edbdca25f2b64886de5325f9dced192218100
+Alfred modified using AntiGravity ADE.  
