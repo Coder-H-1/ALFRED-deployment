@@ -3,7 +3,7 @@ from FILES.utils import Responder , get_greeting, MEMORY
 from FILES.commands import process_command
 from FILES.util_functions import listen_command, speak
 from FILES.intent import INTENT
-from FILES.API.server import run_api
+from FILES.backend.server import run_api
 import os, sys, threading
 
 COMMAND_INPUT = False

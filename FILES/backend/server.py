@@ -9,7 +9,7 @@ import traceback
 # Add project root to path to import FILES modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from FILES.API.db import init_db, register_user, authenticate, check_access, get_user_data, toggle_access
+from FILES.backend.db import init_db, register_user, authenticate, check_access, get_user_data, toggle_access
 from FILES.commands import process_command
 from FILES.utils import Responder
 
