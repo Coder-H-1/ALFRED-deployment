@@ -115,7 +115,22 @@ def authenticate(name, device_username, password):
             
     device_file = os.path.join(user_dir, "devices", f"{device_username}.json")
     if not os.path.exists(device_file):
-        return False
+        # Auto-register device since credentials are valid
+        api_key = secrets.token_hex(16)
+        device_data = {
+            "device_username": device_username,
+            "api_key": api_key,
+            "browser_info": "Auto-registered via Login",
+            "has_access": 1
+        }
+        with open(device_file, "w") as f:
+            json.dump(device_data, f)
+            
+        queue_path = os.path.join(user_dir, "devices", f"{device_username}_queue.json")
+        with open(queue_path, "w") as f:
+            json.dump([], f)
+            
+        return True
         
     # Check access status
     with open(device_file, "r") as f:
