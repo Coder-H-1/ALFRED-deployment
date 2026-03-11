@@ -23,8 +23,17 @@ Working:
 import os
 import datetime
 import random
+import threading
 
-from llama_cpp import Llama
+VERCEL = os.environ.get("VERCEL")
+
+try: 
+    if VERCEL:
+        raise ImportError("Skipping LLAMA on Vercel")
+    from llama_cpp import Llama
+    HAS_LLAMA = True
+except (ModuleNotFoundError, ImportError): 
+    HAS_LLAMA = False
 
 try: 
     from FILES.util_functions import Text_Editor, Memory, MEMORY
@@ -67,7 +76,6 @@ def get_greeting() -> str: ## Greets user
 def clear_Memory() -> None: MEMORY.clean_history()  # Clears all the previous Session chat history
 
 # FOR LLM
-import threading
 
 def get_optimal_threads(reserve=2) -> int: ## For CPU usage control  > reserves atleast 2 cpu cores for Operating System 
     total:int = os.cpu_count() or 4
@@ -83,6 +91,10 @@ _LLM_READY = threading.Event()
 def _load_model_thread():
     """Background task to initialize the model."""
     global _LLM_INSTANCE
+    if not HAS_LLAMA:
+        _LLM_READY.set()
+        return
+
     try:
         print(":> System warming up (Loading LLM in background)...")
         _LLM_INSTANCE = Llama(
@@ -95,12 +107,18 @@ def _load_model_thread():
         print(":> System Ready (LLM Loaded).")
     except Exception as e:
         print(f":> Error loading LLM: {e}")
+        _LLM_READY.set()
 
 # Start pre-loading immediately on import
-threading.Thread(target=_load_model_thread, daemon=True).start()
+if not VERCEL:
+    threading.Thread(target=_load_model_thread, daemon=True).start()
+else:
+    _LLM_READY.set()
 
 def get_llm():
     """Returns the LLM instance, waiting if it's still loading."""
+    if not HAS_LLAMA:
+        return None
     if not _LLM_READY.wait(timeout=60): # Wait up to 30 seconds
         print(":> Warning: LLM loading is taking longer than expected.")
     return _LLM_INSTANCE
@@ -111,6 +129,11 @@ def Responder(prompt: str) -> str: ### Reponds user query
     MEMORY.remember("last_command", prompt) 
     ### sets key = "last_command" to value = (prompt)
     
+    if not HAS_LLAMA:
+        answer = "I'm sorry, sir. My core AI engine is currently disabled in the serverless environment."
+        MEMORY.add_to_history(prompt, answer)
+        return answer
+
     llm = get_llm()
     if llm is None:
         return "I'm sorry, sir. The model failed to load. Please check if the model file exists."
