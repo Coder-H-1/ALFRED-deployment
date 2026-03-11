@@ -160,8 +160,13 @@
             <div id="msgBox" class="msg-box"></div>
 
             <div class="form-group">
-                <label>Username</label>
-                <input type="text" id="username" placeholder="Choose a username" required autofocus>
+                <label>Master Name</label>
+                <input type="text" id="name" placeholder="John" required autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label>Device Name (Username)</label>
+                <input type="text" id="device_username" placeholder="Desktop-PC" required>
             </div>
             
             <div class="form-group">
@@ -186,14 +191,18 @@
             msgBox.style.display = 'none';
             msgBox.className = 'msg-box';
 
-            const username = document.getElementById('username').value;
+            const name = document.getElementById('name').value;
+            const device_username = document.getElementById('device_username').value;
             const password = document.getElementById('password').value;
+            
+            // Simple generic user agent capture for device info
+            const browser_info = navigator.userAgent;
 
             try {
                 const response = await fetch('/signup', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({ name, device_username, password, browser_info })
                 });
 
                 const data = await response.json();

@@ -9,7 +9,7 @@ import traceback
 # Add project root to path to import FILES modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from FILES.backend.db import init_db, register_user, authenticate, check_access, get_user_data, toggle_access
+from FILES.backend.db import init_db, register_user, authenticate, check_access, get_user_data, toggle_access, queue_command, get_pending_commands
 from FILES.commands import process_command
 from FILES.utils import Responder
 
@@ -35,68 +35,86 @@ def signup():
         return render_template('signup.html')
         
     data = request.json
-    username = data.get("username")
+    name = data.get("name")
+    device_username = data.get("device_username")
     password = data.get("password")
+    browser_info = data.get("browser_info", "Unknown Device")
     
-    if not username or not password:
-        return jsonify({"success": False, "error": "Username and password required"}), 400
+    if not name or not device_username or not password:
+        return jsonify({"success": False, "error": "Name, Device Username, and Password required"}), 400
     
-    api_key = register_user(username, password)
-    if api_key:
-        return jsonify({"success": True, "message": f"User {username} registered successfully", "api_key": api_key}), 201
+    result = register_user(name, device_username, password, browser_info)
+    if "api_key" in result:
+        return jsonify({"success": True, "message": f"Device {device_username} registered successfully", "api_key": result["api_key"]}), 201
     else:
-        return jsonify({"success": False, "error": "User already exists"}), 409
+        return jsonify({"success": False, "error": result.get("error", "Failed to register")}), 409
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Endpoint for user login with v4.0 sync logic."""
+    """Endpoint for user login with v5.0 sync logic."""
     print(f":> Accessing Login Page [{request.method}]")
     if request.method == 'GET':
         return render_template('login.html')
         
     data = request.json
-    username = data.get("username")
+    name = data.get("name")
+    device_username = data.get("device_username")
     password = data.get("password")
     
-    if authenticate(username, password):
-        session['user'] = username
-        user_data = get_user_data(username)
+    if authenticate(name, device_username, password):
+        session['user_name'] = name
+        session['device_username'] = device_username
+        user_data = get_user_data(name)
+        
+        # Find the specific device API key to return
+        api_key = None
+        for device in user_data["devices"]:
+            if device["device_username"] == device_username:
+                api_key = device["api_key"]
+                break
+                
         return jsonify({
             "success": True, 
             "message": "Login successful",
             "user": {
-                "username": user_data['username'],
-                "api_key": user_data['api_key'],
-                "has_access": bool(user_data['has_access'])
+                "name": name,
+                "device_username": device_username,
+                "api_key": api_key,
+                "has_access": True
             }
         }), 200
     else:
-        return jsonify({"success": False, "error": "Invalid credentials"}), 401
+        return jsonify({"success": False, "error": "Invalid credentials or access revoked"}), 401
 
 @app.route('/logout')
 def logout():
-    session.pop('user', None)
+    session.pop('user_name', None)
+    session.pop('device_username', None)
     return redirect(url_for('home'))
 
 @app.route('/dashboard')
 def dashboard():
     """Personal dashboard for users."""
     print(":> Accessing Dashboard [/dashboard]")
-    if 'user' not in session:
+    if 'user_name' not in session:
         return redirect(url_for('login'))
         
-    user_data = get_user_data(session['user'])
+    user_data = get_user_data(session['user_name'])
     return render_template('dashboard.html', user=user_data)
 
 @app.route('/toggle_access', methods=['POST'])
 def toggle():
     """API endpoint to toggle access from dashboard."""
-    if 'user' not in session:
+    if 'user_name' not in session:
         return jsonify({"success": False, "error": "Unauthorized"}), 401
         
     data = request.json
     state = data.get("state") # Expected boolean
-    toggle_access(session['user'], state)
+    target_device = data.get("device_username")
+    if not target_device:
+        return jsonify({"success": False, "error": "Target device not specified"}), 400
+        
+    toggle_access(session['user_name'], target_device, state)
     return jsonify({"success": True, "new_state": state}), 200
 
 # Sensitive keywords restricted to admin/coder
@@ -112,22 +130,23 @@ RATE_LIMIT_STRICT = 2  # Seconds between requests for sensitive commands
 RATE_LIMIT_GENERAL = 0.5 # Seconds for general chat
 user_last_request = defaultdict(float)
 
-# --- ALFRED Mobile Integration (v4.0) ---
-import queue
-mobile_commands = queue.Queue()
+# --- ALFRED Device Polling Integration (v5.0) ---
 
-@app.route('/api/mobile/commands', methods=['GET'])
-def poll_mobile_commands():
-    """Endpoint for Android APK to poll for background commands."""
-    commands_to_send = []
-    try:
-        # Drain the queue of all currently pending commands
-        while not mobile_commands.empty():
-            commands_to_send.append(mobile_commands.get_nowait())
-    except queue.Empty:
-        pass
+@app.route('/api/<name>/<device_username>/', methods=['GET'])
+def poll_device_commands(name, device_username):
+    """Endpoint for ALFRED Local Listener to poll for commands."""
+    api_key = request.args.get('api_key')
+    if not api_key:
+        return jsonify({"success": False, "error": "Missing api_key"}), 401
         
-    return jsonify(commands_to_send), 200
+    pending_commands = get_pending_commands(name, device_username, api_key)
+    
+    if pending_commands is None:
+        return jsonify({"success": False, "error": "Unauthorized or device not found."}), 403
+        
+    # Return list of command texts
+    commands = [cmd["command"] for cmd in pending_commands]
+    return jsonify(commands), 200
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
@@ -143,7 +162,7 @@ def is_rate_limited(username, is_sensitive=False):
 
 @app.route('/execute', methods=['POST'])
 def execute():
-    """Endpoint to execute a command with threaded performance v3.1."""
+    """Endpoint to queue a command for the local device listener."""
     try:
         data = request.json
         if not data:
@@ -159,120 +178,37 @@ def execute():
             return jsonify({"success": True, "disconnect": True, "response": "Disconnecting session..."}), 200
 
         # 2. Identify Role and Credentials
-        username = None
-        api_key = data.get("api_key")
+        name = None
+        device_username = None
         
-        # Priority 1: API Key based session authentication (v3.0 standard)
-        if api_key:
-            # We need to find the user by API Key if username isn't provided or is untrusted
-            # Small helper to find user by key in DB would be better, but we'll use existing get_user_data with session if available
-            if 'user' in session:
-                username = session['user']
-            else:
-                # If no session, we require username for now to resolve the key
-                username = data.get("username")
-            
-            if not username:
-                return jsonify({"success": False, "error": "Username required to validate API key"}), 401
-                
-            user_data = get_user_data(username)
-            if not user_data or user_data['api_key'] != api_key:
-                return jsonify({"success": False, "error": "Invalid API Key or Username"}), 403
+        # Priority 1: Use Web Session Context
+        if 'user_name' in session:
+            name = session['user_name']
+            device_username = session.get('device_username', data.get("device_username"))
+            if not device_username:
+                 return jsonify({"success": False, "error": "Target device not specified"}), 400
         else:
-            # Priority 2: Traditional Session/Credential Auth
-            if 'user' in session:
-                username = session['user']
-                user_data = get_user_data(username)
-                api_key = user_data['api_key']
-            else:
-                username = data.get("username")
-                password = data.get("password")
-                if not username or not password:
-                    return jsonify({"success": False, "error": "Credentials or API Key required"}), 401
-                if not authenticate(username, password):
-                     return jsonify({"success": False, "error": "Unauthorized"}), 403
-                user_data = get_user_data(username)
-                api_key = user_data['api_key']
+             return jsonify({"success": False, "error": "Not logged in"}), 401
 
-        is_admin = username.lower() in ["admin", "coder", "phone"]
+        is_admin = name.lower() in ["admin", "coder", "phone"]
         is_sensitive = any(keyword in command for keyword in RESTRICTED_KEYWORDS)
 
-        # 3. Rate Limiting Protection
-        if is_rate_limited(username, is_sensitive):
-            return jsonify({"success": False, "error": "Rate limit exceeded"}), 429
+        # 3. Rate Limiting Protection (Queueing limits)
+        if is_rate_limited(name, is_sensitive):
+            return jsonify({"success": False, "error": "Rate limit exceeded. Sending commands too quickly."}), 429
  
         # 4. Tiered Access Logic
         if is_sensitive and not is_admin:
-            print(f":> Restricted Access Blocked: {username} tried '{command}'")
+            print(f":> Restricted Access Blocked: {name} tried '{command}'")
             return jsonify({"success": False, "error": f"Restricted: Admin only."}), 403
 
-        # 5. Access Enable Check (Dashboard Toggle)
-        if not check_access(username, api_key):
-            return jsonify({"success": False, "error": "Access Disabled"}), 403
-
-        # 6. Mobile Command Routing (v4.0)
-        mobile_actions = {
-            "message": "send_sms",
-            "sms": "send_sms",
-            "call": "make_call",
-            "dial": "make_call",
-            "launch": "launch_app",
-            "open app": "launch_app",
-            "bluetooth": "set_bluetooth",
-            "wifi": "set_wifi",
-            "volume": "set_volume",
-            "browse": "open_browser",
-            "open web": "open_browser",
-            "open url": "open_browser",
-            "url": "open_browser"
-        }
+        # 5. Push to Device Queue
+        success = queue_command(name, device_username, command)
         
-        # Check if the command starts with a mobile action
-        for k, action_type in mobile_actions.items():
-            if command.startswith(k):
-                # Extract payload
-                payload_val = command.replace(k, "").strip()
-                cmd_payload = {}
-                
-                if action_type == "launch_app": 
-                    cmd_payload = {"package": payload_val}
-                elif action_type == "open_browser":
-                    # Ensure url starts with http if not provided
-                    url = payload_val if payload_val.startswith("http") else f"https://{payload_val}"
-                    cmd_payload = {"url": url}
-                elif action_type in ["set_bluetooth", "set_wifi"]: 
-                    cmd_payload = {"enabled": payload_val}
-                elif action_type == "set_volume":
-                    cmd_payload = {"level": payload_val}
-                elif action_type == "send_sms":
-                    parts = payload_val.split(" ", 1)
-                    if len(parts) == 2:
-                        cmd_payload = {"number": parts[0], "message": parts[1]}
-                    else:
-                        cmd_payload = {"number": payload_val, "message": "ALFRED command ping."}
-                else:
-                    cmd_payload = {"number": payload_val}
-                
-                cmd_obj = {
-                    "action": action_type,
-                    "payload": cmd_payload
-                }
-                mobile_commands.put(cmd_obj)
-                print(f":> [MOBILE ROUTING] Sent to phone: {cmd_obj}")
-                return jsonify({"success": True, "response": f"Command sent to mobile device: {command}"}), 200
-
-        # 7. Threaded Execution (v3.1)
-        def run_command():
-            print(f":> [THREAD] Executing: {username} -> {command}")
-            res = process_command(command)
-            if not res or res.lower().startswith("i don't understand"):
-                res = Responder(command)
-            return res
-
-        future = executor.submit(run_command)
-        response = future.result(timeout=180) # Wait for result but run in threadpool
-
-        return jsonify({"success": True, "user": username, "command": command, "response": response}), 200
+        if success:
+             return jsonify({"success": True, "user": name, "command": command, "response": f"Command sent to {device_username}"}), 200
+        else:
+             return jsonify({"success": False, "error": "Failed to queue command."}), 500
 
     except Exception as e:
         print(f":> [CRITICAL] Internal Error: {str(e)}")
@@ -301,3 +237,10 @@ if __name__ == "__main__":
 
 
 
+
+def run_api():
+    """Starts the Flask server for local debugging."""
+    app.run(host="0.0.0.0", port=9000)
+
+if __name__ == "__main__":
+    run_api()
