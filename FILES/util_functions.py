@@ -47,13 +47,21 @@ def LegacyEDIT(text, FROM_str, TO_str=None):
 
 import queue
 import threading
-import pyttsx3
+import os
+try:
+    import pyttsx3
+    HAS_PYTTSX3 = True
+except ImportError:
+    HAS_PYTTSX3 = False
 
 _speech_queue = queue.Queue()
 
 def _speaker_worker():
     """Dedicated thread for speaking to avoid COM/threading issues."""
     try:
+        if not HAS_PYTTSX3:
+            return
+        
         engine = pyttsx3.init("sapi5")
         engine.setProperty("rate", 170)
         voices = engine.getProperty("voices")
@@ -69,8 +77,9 @@ def _speaker_worker():
     except Exception as e:
         print(f":> [SPEECH ERROR] {e}")
 
-# Start the background speaker thread
-threading.Thread(target=_speaker_worker, daemon=True).start()
+# Start the background speaker thread only if we have TTS capabilities
+if HAS_PYTTSX3 and not os.environ.get("VERCEL"):
+    threading.Thread(target=_speaker_worker, daemon=True).start()
 
 def speak(text: str = None, speech_rate: int = 170) -> None:  ### Speaks the text given
     "Text to Speech function"
@@ -85,14 +94,25 @@ def speak(text: str = None, speech_rate: int = 170) -> None:  ### Speaks the tex
 ######################################################################################################################
 ### > Speech Recognition
 
-import speech_recognition as sr
+try:
+    import speech_recognition as sr
+    HAS_SR = True
+except ImportError:
+    HAS_SR = False
 
 # listen_commands configuration
-RECOGNIZER = sr.Recognizer()
-MIC = sr.Microphone()
+if HAS_SR:
+    RECOGNIZER = sr.Recognizer()
+    MIC = sr.Microphone()
+else:
+    RECOGNIZER = None
+    MIC = None
     
 
 def listen_command() -> str:   ### Listens the user speech using speech_recognition
+    if not HAS_SR:
+        return None
+        
     r = sr.Recognizer()
     while True:
         with sr.Microphone() as source:
