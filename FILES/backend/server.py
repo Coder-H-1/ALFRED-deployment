@@ -10,8 +10,8 @@ import traceback
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from FILES.backend.db import init_db, register_user, authenticate, check_access, get_user_data, toggle_access, queue_command, get_pending_commands
-from FILES.commands import process_command
-from FILES.utils import Responder
+
+
 
 # Ensure templates folder is recognized correctly
 template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "templates"))
