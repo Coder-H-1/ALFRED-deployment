@@ -1,11 +1,19 @@
-Android_APK/
-TEST/
-ext/
-FILES/model/
+# ALFRED v1.0 Gitignore
 __pycache__/
-*.db
-*.sqlite3
 *.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
 .env
-commands
+.flaskenv
+
+# Database and User Data (Sensitive)
 FILES/backend/users_db/
+FILES/backend/users.db
+*.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db

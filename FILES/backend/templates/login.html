@@ -3,184 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALFRED - Log In</title>
+    <title>ALFRED v1.0 - Log In</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #09090b;
-            --surface: #18181b;
-            --border: #27272a;
-            --text-main: #f4f4f5;
-            --text-muted: #a1a1aa;
+            --bg: #030303;
+            --surface: #0a0a0a;
+            --border: #1a1a1a;
+            --text-main: #ffffff;
+            --text-muted: #666666;
             --primary: #ffffff;
             --primary-invert: #000000;
-            --error: #ef4444;
-            --radius: 8px;
+            --error: #ff4444;
+            --radius: 4px;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
 
         body {
             background-color: var(--bg);
             color: var(--text-main);
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            -webkit-font-smoothing: antialiased;
         }
 
-        .container {
+        .login-card {
             width: 100%;
-            max-width: 400px;
-            padding: 2rem;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.5rem;
-        }
-
-        .subtitle {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        form {
+            max-width: 360px;
+            padding: 2.5rem;
             background: var(--surface);
-            padding: 2rem;
             border: 1px solid var(--border);
             border-radius: var(--radius);
         }
 
-        .form-group {
-            margin-bottom: 1.25rem;
-        }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .logo { font-size: 1rem; font-weight: 700; letter-spacing: 0.3em; margin-bottom: 0.5rem; }
+        .subtitle { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
 
-        label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
+        form { display: flex; flex-direction: column; gap: 1.25rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+        label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
 
         input {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            background: var(--bg);
+            background: transparent;
             border: 1px solid var(--border);
+            padding: 0.8rem;
+            color: white;
             border-radius: var(--radius);
-            color: var(--text-main);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             outline: none;
-            transition: border-color 0.2s;
         }
 
-        input:focus {
-            border-color: var(--text-muted);
-        }
+        input:focus { border-color: #444; }
 
         .btn {
-            width: 100%;
-            padding: 0.75rem;
             background: var(--primary);
             color: var(--primary-invert);
             border: none;
+            padding: 0.8rem;
+            font-weight: 700;
             border-radius: var(--radius);
-            font-size: 0.95rem;
-            font-weight: 600;
             cursor: pointer;
-            transition: opacity 0.2s, transform 0.1s;
             margin-top: 0.5rem;
-        }
-
-        .btn:hover {
-            opacity: 0.9;
-        }
-
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        .error-msg {
-            color: var(--error);
             font-size: 0.85rem;
-            margin-bottom: 1rem;
-            text-align: center;
-            display: none;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
         }
 
-        .footer {
-            text-align: center;
-            margin-top: 1.5rem;
-            font-size: 0.875rem;
-            color: var(--text-muted);
-        }
+        .btn:hover { opacity: 0.9; }
 
-        .footer a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 500;
-        }
-        
-        .footer a:hover {
-            text-decoration: underline;
-        }
+        .footer { margin-top: 1.5rem; text-align: center; font-size: 0.8rem; color: var(--text-muted); }
+        .footer a { color: var(--text-main); text-decoration: none; font-weight: 600; }
+        #errorBox { color: var(--error); font-size: 0.75rem; text-align: center; margin-bottom: 1rem; display: none; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="login-card">
         <div class="header">
-            <div class="logo">ALFRED</div>
-            <div class="subtitle">Enter your credentials to access the console</div>
+            <div class="logo">A.L.F.R.E.D</div>
+            <div class="subtitle">Secure Relay Access</div>
         </div>
 
-        <form id="loginForm">
-            <div id="errorBox" class="error-msg"></div>
+        <div id="errorBox"></div>
 
+        <form id="loginForm">
             <div class="form-group">
-                <label>Master Name</label>
-                <input type="text" id="name" placeholder="John" required autofocus>
+                <label>Account Name</label>
+                <input type="text" id="name" placeholder="MASTER IDENTITY" required>
             </div>
-            
             <div class="form-group">
-                <label>Device Name (Username)</label>
-                <input type="text" id="device_username" placeholder="Desktop-PC" required>
+                <label>Device Name</label>
+                <input type="text" id="device_username" placeholder="CURRENT_TERMINAL" required>
             </div>
-            
             <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="password" placeholder="••••••••" required>
+                <label>Passphrase</label>
+                <input type="password" id="password" required>
             </div>
-            
-            <button type="submit" class="btn">Sign In</button>
+            <button type="submit" class="btn">Authorize</button>
         </form>
 
         <div class="footer">
-            Don't have an account? <a href="/signup">Sign up</a>
+            No credentials? <a href="/signup">Establish Identity</a>
         </div>
     </div>
 
     <script>
-        const loginForm = document.getElementById('loginForm');
-        const errorBox = document.getElementById('errorBox');
-
-        loginForm.onsubmit = async (e) => {
+        document.getElementById('loginForm').onsubmit = async (e) => {
             e.preventDefault();
-            errorBox.style.display = 'none';
+            const eb = document.getElementById('errorBox');
+            eb.style.display = 'none';
 
             const name = document.getElementById('name').value;
             const device_username = document.getElementById('device_username').value;
@@ -190,18 +123,17 @@
                 const response = await fetch('/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, device_username, password })
+                    body: JSON.stringify({ name, device_username, password, browser_info: navigator.userAgent })
                 });
 
-                if (response.ok) {
-                    window.location.href = '/dashboard'; 
-                } else {
-                    errorBox.innerText = "Invalid credentials.";
-                    errorBox.style.display = 'block';
+                if (response.ok) { window.location.href = '/dashboard'; }
+                else {
+                    eb.innerText = "AUTHENTICATION FAILED";
+                    eb.style.display = 'block';
                 }
             } catch (err) {
-                errorBox.innerText = "Connection lost. Backend unreachable.";
-                errorBox.style.display = 'block';
+                eb.innerText = "RELAY OFFLINE";
+                eb.style.display = 'block';
             }
         };
     </script>

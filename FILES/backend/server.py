@@ -79,12 +79,11 @@ def login():
             "user": {
                 "name": name,
                 "device_username": device_username,
-                "api_key": api_key,
-                "has_access": True
+                "api_key": api_key
             }
         }), 200
     else:
-        return jsonify({"success": False, "error": "Invalid credentials or access revoked"}), 401
+        return jsonify({"success": False, "error": "Invalid credentials"}), 401
 
 @app.route('/logout')
 def logout():
@@ -117,8 +116,15 @@ def toggle():
     toggle_access(session['user_name'], target_device, state)
     return jsonify({"success": True, "new_state": state}), 200
 
+# Commands that non-admin users are allowed to send
+PREDEFINED_COMMANDS = [
+    'camera', 'screenshot', 'battery', 'brightness', 'location', 
+    'wifi', 'bluetooth', 'volume', 'flash', 'lock', 'play_sound', 
+    'get_apps', 'vibrate', 'toast'
+]
+
 # Sensitive keywords restricted to admin/coder
-RESTRICTED_KEYWORDS = ['open', 'close', 'delete', 'start', 'shutdown', 'restart', 'play']
+RESTRICTED_KEYWORDS = ['open', 'close', 'delete', 'start', 'shutdown', 'restart', 'play', 'shell', 'exec']
 # Keywords that signal a session end
 DISCONNECT_KEYWORDS = ['end', 'exit', 'quit']
         
@@ -126,8 +132,8 @@ import time
 from collections import defaultdict
 
 # --- API Protection & Rate Limiting ---
-RATE_LIMIT_STRICT = 2  # Seconds between requests for sensitive commands
-RATE_LIMIT_GENERAL = 0.5 # Seconds for general chat
+RATE_LIMIT_STRICT = 2.5  
+RATE_LIMIT_GENERAL = 2.5 
 user_last_request = defaultdict(float)
 
 # --- ALFRED Device Polling Integration (v5.0) ---
@@ -138,6 +144,16 @@ def poll_device_commands(name, device_username):
     api_key = request.args.get('api_key')
     if not api_key:
         return jsonify({"success": False, "error": "Missing api_key"}), 401
+        
+    # v1.0 Specific Rate Limiting (2.5s per device)
+    device_key = f"{name}:{device_username}"
+    now = time.time()
+    last_time = user_last_request.get(device_key, 0)
+    
+    if now - last_time < RATE_LIMIT_GENERAL:
+        return jsonify({"success": False, "error": "Rate limit exceeded"}), 429
+        
+    user_last_request[device_key] = now
         
     pending_commands = get_pending_commands(name, device_username, api_key)
     
@@ -150,15 +166,14 @@ def poll_device_commands(name, device_username):
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
-def is_rate_limited(username, is_sensitive=False):
-    """Check if a user is exceeding the rate limit."""
+# v1.0 Standard Rate Limit Check
+def check_limit(key):
     now = time.time()
-    last_time = user_last_request[username]
-    limit = RATE_LIMIT_STRICT if is_sensitive else RATE_LIMIT_GENERAL
-    if now - last_time < limit:
-        return True
-    user_last_request[username] = now
-    return False
+    last = user_last_request.get(key, 0)
+    if now - last < RATE_LIMIT_GENERAL:
+        return False
+    user_last_request[key] = now
+    return True
 
 @app.route('/execute', methods=['POST'])
 def execute():
@@ -184,29 +199,38 @@ def execute():
         # Priority 1: Use Web Session Context
         if 'user_name' in session:
             name = session['user_name']
-            device_username = session.get('device_username', data.get("device_username"))
+            device_username = data.get("device_username") or session.get('device_username')
             if not device_username:
                  return jsonify({"success": False, "error": "Target device not specified"}), 400
         else:
              return jsonify({"success": False, "error": "Not logged in"}), 401
 
         is_admin = name.lower() in ["admin", "coder", "phone"]
+        is_predefined = any(p in command for p in PREDEFINED_COMMANDS)
         is_sensitive = any(keyword in command for keyword in RESTRICTED_KEYWORDS)
-
-        # 3. Rate Limiting Protection (Queueing limits)
-        if is_rate_limited(name, is_sensitive):
-            return jsonify({"success": False, "error": "Rate limit exceeded. Sending commands too quickly."}), 429
+        
+        # v1.0 Specific Rate Limiting (2.5s per device)
+        device_key = f"{name}:{device_username}"
+        now = time.time()
+        last_time = user_last_request.get(device_key, 0)
+        
+        if now - last_time < RATE_LIMIT_GENERAL:
+            return jsonify({"success": False, "error": "Rate limit exceeded. Please wait 2.5 seconds."}), 429
+            
+        user_last_request[device_key] = now
  
-        # 4. Tiered Access Logic
-        if is_sensitive and not is_admin:
-            print(f":> Restricted Access Blocked: {name} tried '{command}'")
-            return jsonify({"success": False, "error": f"Restricted: Admin only."}), 403
+        # 4. Access Logic
+        if not is_admin:
+            if not is_predefined:
+                 return jsonify({"success": False, "error": "Restricted: Only predefined commands allowed for non-admin accounts."}), 403
+            if is_sensitive:
+                 return jsonify({"success": False, "error": "Restricted: Admin authorization required for sensitive operations."}), 403
 
         # 5. Push to Device Queue
         success = queue_command(name, device_username, command)
         
         if success:
-             return jsonify({"success": True, "user": name, "command": command, "response": f"Command sent to {device_username}"}), 200
+             return jsonify({"success": True, "user": name, "device": device_username, "command": command, "response": f"Command sent to {device_username}"}), 200
         else:
              return jsonify({"success": False, "error": "Failed to queue command."}), 500
 

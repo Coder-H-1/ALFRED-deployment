@@ -25,120 +25,93 @@ def init_db():
         devices_dir = os.path.join(admin_dir, "devices")
         os.makedirs(devices_dir, exist_ok=True)
         
-        # Default device
+        # Default device for admin
         device_key = secrets.token_hex(16)
         device_data = {
-            "device_username": "default_device",
+            "device_username": "current_device",
             "api_key": device_key,
-            "browser_info": "System Default",
-            "has_access": 1
+            "browser_info": "ALFRED Core v1.0"
         }
-        with open(os.path.join(devices_dir, "default_device.json"), "w") as f:
+        with open(os.path.join(devices_dir, "current_device.json"), "w") as f:
             json.dump(device_data, f)
             
-        # Initialize an empty command queue
-        queue_path = os.path.join(devices_dir, "default_device_queue.json")
-        with open(queue_path, "w") as f:
+        # Initialize queue
+        with open(os.path.join(devices_dir, "current_device_queue.json"), "w") as f:
             json.dump([], f)
             
-        print(f":> Created default user 'admin' with API Key: {device_key}")
+        print(f":> v1.0 Database initialized with default admin.")
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 def register_user(name, device_username, password, browser_info="Unknown"):
-    """Registers a new user/device and returns the API key.
-    If the Name exists, it checks the password before adding a new device."""
-    
+    """Registers a new account/device based on v1.0 specs."""
     os.makedirs(DB_ROOT, exist_ok=True)
     user_dir = os.path.join(DB_ROOT, name)
     pw_hash = hash_password(password)
     
-    # 1. Check if user already exists
+    # Check if Account exists
     if os.path.exists(user_dir):
-        # Verify password matches existing user
+        # Validate password to allow adding a new device to existing account
         pw_file = os.path.join(user_dir, "password.txt")
         if os.path.exists(pw_file):
             with open(pw_file, "r") as f:
-                existing_pw_hash = f.read().strip()
-                
-            if existing_pw_hash != pw_hash:
-                return {"error": "Invalid password for existing Name."}
+                if f.read().strip() != pw_hash:
+                    return {"error": "Invalid password for existing Account name."}
     else:
-        # Create new user
+        # Create new Account-folder
         os.makedirs(user_dir, exist_ok=True)
         with open(os.path.join(user_dir, "password.txt"), "w") as f:
             f.write(pw_hash)
             
-    # 2. Add or update Device
+    # Device Registration under Account/devices/
     devices_dir = os.path.join(user_dir, "devices")
     os.makedirs(devices_dir, exist_ok=True)
     
-    api_key = secrets.token_hex(16)
     device_file = os.path.join(devices_dir, f"{device_username}.json")
-    
     if os.path.exists(device_file):
-        return {"error": "Device Username already exists for this Name."}
+        return {"error": "Device already registered to this account."}
         
+    api_key = secrets.token_hex(16)
     device_data = {
         "device_username": device_username,
         "api_key": api_key,
-        "browser_info": browser_info,
-        "has_access": 1
+        "browser_info": browser_info
     }
     
     with open(device_file, "w") as f:
         json.dump(device_data, f)
         
     # Create empty queue
-    queue_path = os.path.join(devices_dir, f"{device_username}_queue.json")
-    with open(queue_path, "w") as f:
+    with open(os.path.join(devices_dir, f"{device_username}_queue.json"), "w") as f:
         json.dump([], f)
         
     return {"api_key": api_key}
 
-def authenticate(name, device_username, password):
-    """Checks if the credentials match."""
+def authenticate(name, device_username, password, browser_info=None):
+    """
+    Checks credentials and ensures the device exists/is updated.
+    v1.0 Logic: If account matches but device is missing, auto-add the device.
+    """
     user_dir = os.path.join(DB_ROOT, name)
     pw_hash = hash_password(password)
     
-    if not os.path.exists(user_dir):
-        return False
-        
+    if not os.path.exists(user_dir): return False
+    
     pw_file = os.path.join(user_dir, "password.txt")
-    if not os.path.exists(pw_file):
-        return False
+    if not os.path.exists(pw_file): return False
         
     with open(pw_file, "r") as f:
-        if f.read().strip() != pw_hash:
-            return False
+        if f.read().strip() != pw_hash: return False
             
-    device_file = os.path.join(user_dir, "devices", f"{device_username}.json")
+    # Account is valid. Ensure device exists.
+    devices_dir = os.path.join(user_dir, "devices")
+    os.makedirs(devices_dir, exist_ok=True)
+    
+    device_file = os.path.join(devices_dir, f"{device_username}.json")
     if not os.path.exists(device_file):
-        # Auto-register device since credentials are valid
-        api_key = secrets.token_hex(16)
-        device_data = {
-            "device_username": device_username,
-            "api_key": api_key,
-            "browser_info": "Auto-registered via Login",
-            "has_access": 1
-        }
-        with open(device_file, "w") as f:
-            json.dump(device_data, f)
-            
-        queue_path = os.path.join(user_dir, "devices", f"{device_username}_queue.json")
-        with open(queue_path, "w") as f:
-            json.dump([], f)
-            
-        return True
-        
-    # Check access status
-    with open(device_file, "r") as f:
-        device_data = json.load(f)
-        if device_data.get("has_access", 0) == 0:
-             # Authentication technically succeeds, but access might be revoked.
-             # Returning False blocks login entirely if revoked.
-             pass 
+        # Auto-register new device on valid login
+        register_user(name, device_username, password, browser_info or "Auto-registered on Login")
              
     return True
 
@@ -161,26 +134,17 @@ def get_user_data(name):
                     "username": device_data["device_username"], # Keeping legacy key for compatibility if needed
                     "device_username": device_data["device_username"],
                     "api_key": device_data["api_key"],
-                    "has_access": device_data["has_access"],
                     "browser_info": device_data.get("browser_info", "Unknown")
                 })
                 
     return {"username": name, "name": name, "devices": devices}
 
 def toggle_access(name, device_username, state):
-    """Toggles the has_access state for a specific device."""
-    device_file = os.path.join(DB_ROOT, name, "devices", f"{device_username}.json")
-    if os.path.exists(device_file):
-        with open(device_file, "r") as f:
-            data = json.load(f)
-        
-        data["has_access"] = 1 if state else 0
-        
-        with open(device_file, "w") as f:
-            json.dump(data, f)
+    """(Deprecated) Toggles the has_access state for a specific device."""
+    pass
 
 def check_access(name, device_username, api_key):
-    """Verifies the device exists, has the matching API key, and has_access is true."""
+    """Verifies the device exists and has the matching API key."""
     if name.lower() in ["admin", "coder"]:
         return True
         
@@ -191,7 +155,7 @@ def check_access(name, device_username, api_key):
     with open(device_file, "r") as f:
         data = json.load(f)
         
-    return data.get("api_key") == api_key and data.get("has_access", 0) == 1
+    return data.get("api_key") == api_key
 
 # --- Command Queue Functionality ---
 
