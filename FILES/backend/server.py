@@ -189,6 +189,7 @@ def remove_device():
     if delete_device(session['user_name'], device_username):
         return jsonify({"success": True})
     return jsonify({"success": False, "error": "Deletion failed"}), 500
+@app.route('/execute', methods=['POST'])
 def execute():
     """Endpoint to queue a command for the local device listener."""
     try:
