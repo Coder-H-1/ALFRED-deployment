@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALFRED v1.0 - Command Relay System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #030303;
+            --surface: #0a0a0a;
+            --border: #1f1f1f;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --primary: #ffffff;
+            --primary-invert: #000000;
+            --font-main: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: var(--font-main);
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 600px;
+            padding: 2rem;
+            animation: fadeIn 1s ease-out;
+        }
+
+        .logo {
+            font-weight: 700;
+            font-size: 2rem;
+            letter-spacing: 0.5em;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+        }
+
+        .tagline {
+            color: var(--text-muted);
+            font-size: 1rem;
+            margin-bottom: 3rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 0.8rem 2rem;
+            border-radius: 4px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: var(--primary-invert);
+            border: 1px solid var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: transparent;
+            color: var(--primary);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--surface);
+            border-color: var(--text-muted);
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 2rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">A.L.F.R.E.D</div>
+        <div class="tagline">v1.0 Professional Command Relay</div>
+        
+        <div class="actions">
+            <a href="/login" class="btn btn-primary">Login to Relay</a>
+            <a href="/signup" class="btn btn-secondary">Establish Identity</a>
+        </div>
+    </div>
+
+    <div class="footer">
+        Secured encrypted link // status: operational
+    </div>
+</body>
+</html>
