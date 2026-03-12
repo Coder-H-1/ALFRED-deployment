@@ -175,7 +175,20 @@ def check_limit(key):
     user_last_request[key] = now
     return True
 
-@app.route('/execute', methods=['POST'])
+@app.route('/delete_device', methods=['POST'])
+def remove_device():
+    if 'user_name' not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+    
+    data = request.json
+    device_username = data.get("device_username")
+    if not device_username:
+        return jsonify({"success": False, "error": "Device name required"}), 400
+    
+    # Block deleting 'current_device' if it's the only one (optional, but let's allow it as requested)
+    if db.delete_device(session['user_name'], device_username):
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": "Deletion failed"}), 500
 def execute():
     """Endpoint to queue a command for the local device listener."""
     try:

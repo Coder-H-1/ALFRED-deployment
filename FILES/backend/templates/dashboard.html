@@ -60,7 +60,10 @@
             align-items: center;
             padding: 0 1.5rem;
             border-bottom: 1px solid var(--border);
-            z-index: 100;
+            background: var(--bg);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
 
         .logo {
@@ -133,8 +136,10 @@
         .workspace {
             flex: 1;
             display: grid;
-            grid-template-columns: 1fr 280px; /* Terminal Left (flexible), Devices Right (fixed) */
+            grid-template-columns: 1fr 280px; 
             overflow: hidden;
+            max-height: 80vh; /* Shorter overall workspace height */
+            margin: auto 0;
         }
 
         /* --- Terminal Block --- */
@@ -265,31 +270,56 @@
             font-family: var(--font-mono);
         }
 
-        @media (max-width: 900px) {
-            .workspace { 
-                grid-template-columns: 1fr; 
-                display: flex;
-                flex-direction: column;
-            }
-            .devices-panel { 
-                order: -1; 
-                flex: 0 0 auto;
-                border-bottom: 1px solid var(--border);
-                max-height: 200px;
-            }
-            .terminal-container {
-                 flex: 1;
-                 border-right: none;
-            }
+        .device-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        
+
+        .btn-delete {
+            color: var(--danger);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 0 0.5rem;
+            opacity: 0.5;
+            transition: 0.2s;
+        }
+        .btn-delete:hover { opacity: 1; }
+
+        .add-device-trigger {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            color: var(--primary-invert);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
         #qrContainer {
-            margin-top: auto;
-            border-top: 1px solid var(--border);
+            display: none; /* Hidden by default */
+            position: absolute;
+            bottom: 3.5rem;
+            right: 1rem;
+            width: 180px;
+            border: 1px solid var(--border);
             padding: 1rem;
             text-align: center;
-            background: var(--surface-secondary);
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
         }
+        #qrContainer.visible { display: block; }
         .qr-placeholder {
             width: 120px;
             height: 120px;
@@ -357,18 +387,19 @@
             </div>
         </div>
 
-        <aside class="devices-panel">
+        <aside class="devices-panel" style="position: relative;">
             <div class="panel-header">Registered Devices</div>
             <div class="device-list" id="deviceList">
                 <!-- Devices injected here -->
             </div>
             
             <div id="qrContainer">
-                <div class="qr-label">Add Device via QR</div>
-                <div class="qr-placeholder" id="qrTarget">
-                    <!-- QR Image here -->
-                </div>
+                <div class="qr-label">Scan to Add Device</div>
+                <div class="qr-placeholder" id="qrTarget"></div>
+                <div style="font-size: 0.6rem; margin-top: 0.5rem; color: var(--text-muted);">ALFRED PAIRING SYSTEM</div>
             </div>
+
+            <div class="add-device-trigger" id="addDeviceBtn">+</div>
         </aside>
     </div>
 
@@ -422,6 +453,21 @@
         });
         document.querySelector('.dropdown-content').onclick = (e) => e.stopPropagation();
 
+        // QR Toggle Logic
+        const addDeviceBtn = document.getElementById('addDeviceBtn');
+        const qrContainer = document.getElementById('qrContainer');
+        addDeviceBtn.onclick = (e) => {
+            e.stopPropagation();
+            qrContainer.classList.toggle('visible');
+            addDeviceBtn.innerText = qrContainer.classList.contains('visible') ? '×' : '+';
+        };
+        document.addEventListener('click', (e) => {
+            if (!qrContainer.contains(e.target)) {
+                qrContainer.classList.remove('visible');
+                addDeviceBtn.innerText = '+';
+            }
+        });
+
         // --- Device Management ---
         function renderDevices() {
             deviceList.innerHTML = '';
@@ -433,12 +479,15 @@
             userData.devices.forEach(dev => {
                 const item = document.createElement('div');
                 item.className = `device-item ${selectedDevice === dev.device_username ? 'active' : ''}`;
-                item.onclick = () => selectDevice(dev.device_username);
                 
                 item.innerHTML = `
-                    <div class="device-name">${dev.device_username === 'current_device' ? 'Current Device' : dev.device_username}</div>
-                    <div class="device-meta">API: ${dev.api_key.substring(0,8)}...</div>
-                    <div class="device-meta">${dev.browser_info.substring(0,25)}...</div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div onclick="selectDevice('${dev.device_username}')" style="flex: 1;">
+                            <div class="device-name">${dev.device_username}</div>
+                            <div class="device-meta">API: ${dev.api_key.substring(0,8)}...</div>
+                        </div>
+                        <button class="btn-delete" onclick="deleteDevice(event, '${dev.device_username}')">-</button>
+                    </div>
                 `;
                 deviceList.appendChild(item);
             });
@@ -453,12 +502,47 @@
             }
         }
 
+        async function deleteDevice(e, devUser) {
+            e.stopPropagation();
+            if (!confirm(`Are you sure you want to delete ${devUser}?`)) return;
+            
+            try {
+                const response = await fetch('/delete_device', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_username: devUser })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    appendLog(`Device ${devUser} deleted successfully.`, 'sys');
+                    // Update local data and re-render
+                    userData.devices = userData.devices.filter(d => d.device_username !== devUser);
+                    localStorage.setItem('alfred_v1_user', JSON.stringify(userData));
+                    if (selectedDevice === devUser) {
+                        selectedDevice = userData.devices.length > 0 ? userData.devices[0].device_username : null;
+                    }
+                    renderDevices();
+                    if (selectedDevice) selectDevice(selectedDevice);
+                } else {
+                    alert('Deletion failed: ' + data.error);
+                }
+            } catch (err) {
+                alert('Connection error during deletion.');
+            }
+        }
+
         function selectDevice(devUser) {
+            if (!devUser) {
+                activeDeviceLabel.innerText = "NONE";
+                cmdInput.disabled = true;
+                cmdInput.placeholder = "Please add a device...";
+                return;
+            }
             selectedDevice = devUser;
-            activeDeviceLabel.innerText = (devUser === 'current_device' ? 'Current Device' : devUser).toUpperCase();
+            activeDeviceLabel.innerText = devUser.toUpperCase();
             
             // Self-sending restriction check
-            const isSelf = (devUser === 'current_device' || devUser === userData.device_username);
+            const isSelf = (devUser === userData.device_username);
             const isAdmin = ["admin", "coder", "phone"].includes(userData.name.toLowerCase());
             
             if (isSelf && !isAdmin) {
