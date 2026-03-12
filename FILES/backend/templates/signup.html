@@ -28,6 +28,7 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            zoom: 1.1; /* Default 110% zoom */
         }
 
         .card {
@@ -145,6 +146,16 @@
                 mb.innerText = "RELAY OFFLINE";
                 mb.className = 'msg-error';
                 mb.style.display = 'block';
+            }
+        };
+
+        // Auto-fill from QR/URL
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const accName = params.get('account');
+            if (accName) {
+                document.getElementById('name').value = accName;
+                document.getElementById('device_username').focus();
             }
         };
     </script>
