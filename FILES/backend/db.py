@@ -11,9 +11,12 @@ redis_client = None
 if IS_VERCEL:
     try:
         from upstash_redis import Redis
-        # More explicit check for environment variables to avoid 'from_env' crashes
-        if os.environ.get("UPSTASH_REDIS_REST_URL") and os.environ.get("UPSTASH_REDIS_REST_TOKEN"):
-            redis_client = Redis.from_env()
+        # Support both Upstash defaults and Vercel KV defaults
+        url = os.environ.get("UPSTASH_REDIS_REST_URL") or os.environ.get("KV_REST_API_URL")
+        token = os.environ.get("UPSTASH_REDIS_REST_TOKEN") or os.environ.get("KV_REST_API_TOKEN")
+        
+        if url and token:
+            redis_client = Redis(url=url, token=token)
             print(":> Connected to Vercel KV (Redis)")
         else:
             print("!! Redis environment variables missing. Using local /tmp.")
