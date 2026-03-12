@@ -199,9 +199,15 @@ def execute():
         # Priority 1: Use Web Session Context
         if 'user_name' in session:
             name = session['user_name']
-            device_username = data.get("device_username") or session.get('device_username')
+            current_session_device = session.get('device_username')
+            device_username = data.get("device_username") or current_session_device
             if not device_username:
                  return jsonify({"success": False, "error": "Target device not specified"}), 400
+                 
+            # v1.0 Security: Prevent sending to self if not admin
+            is_admin = name.lower() in ["admin", "coder", "phone"]
+            if (device_username == current_session_device or device_username == "current_device") and not is_admin:
+                return jsonify({"success": False, "error": "Restricted: You cannot send commands to your own Current Device."}), 403
         else:
              return jsonify({"success": False, "error": "Not logged in"}), 401
 

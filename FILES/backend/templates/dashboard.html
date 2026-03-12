@@ -49,6 +49,7 @@
             flex-direction: column;
             overflow: hidden;
             transition: background 0.3s;
+            zoom: 1.1; /* Default 110% Zoom */
         }
 
         /* --- Header --- */
@@ -106,7 +107,7 @@
             padding: 0.5rem 0;
         }
 
-        .account-dropdown:hover .dropdown-content {
+        .account-dropdown.open .dropdown-content {
             display: block;
         }
 
@@ -132,7 +133,7 @@
         .workspace {
             flex: 1;
             display: grid;
-            grid-template-columns: 1fr 300px; /* Terminal Left (flexible), Devices Right (fixed) */
+            grid-template-columns: 1fr 280px; /* Terminal Left (flexible), Devices Right (fixed) */
             overflow: hidden;
         }
 
@@ -142,6 +143,7 @@
             display: flex;
             flex-direction: column;
             background: #000000;
+            max-height: 100%;
         }
 
         .terminal-header {
@@ -264,8 +266,45 @@
         }
 
         @media (max-width: 900px) {
-            .workspace { grid-template-columns: 1fr; }
-            .devices-panel { display: none; } /* Hide panel on mobile to focus on terminal */
+            .workspace { 
+                grid-template-columns: 1fr; 
+                display: flex;
+                flex-direction: column;
+            }
+            .devices-panel { 
+                order: -1; 
+                flex: 0 0 auto;
+                border-bottom: 1px solid var(--border);
+                max-height: 200px;
+            }
+            .terminal-container {
+                 flex: 1;
+                 border-right: none;
+            }
+        }
+        
+        #qrContainer {
+            margin-top: auto;
+            border-top: 1px solid var(--border);
+            padding: 1rem;
+            text-align: center;
+            background: var(--surface-secondary);
+        }
+        .qr-placeholder {
+            width: 120px;
+            height: 120px;
+            margin: 0.5rem auto;
+            background: #fff;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .qr-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
         }
     </style>
 </head>
@@ -323,6 +362,13 @@
             <div class="device-list" id="deviceList">
                 <!-- Devices injected here -->
             </div>
+            
+            <div id="qrContainer">
+                <div class="qr-label">Add Device via QR</div>
+                <div class="qr-placeholder" id="qrTarget">
+                    <!-- QR Image here -->
+                </div>
+            </div>
         </aside>
     </div>
 
@@ -358,10 +404,23 @@
         const savedTheme = localStorage.getItem('alfred_v1_theme') || 'dark';
         applyTheme(savedTheme);
 
-        document.getElementById('themeToggleBtn').onclick = () => {
+        document.getElementById('themeToggleBtn').onclick = (e) => {
+            e.stopPropagation();
             const newTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
             applyTheme(newTheme);
         };
+
+        // Click to toggle account dropdown
+        const accBtn = document.querySelector('.btn-menu');
+        const accDropdown = document.querySelector('.account-dropdown');
+        accBtn.onclick = (e) => {
+            e.stopPropagation();
+            accDropdown.classList.toggle('open');
+        };
+        document.addEventListener('click', () => {
+            accDropdown.classList.remove('open');
+        });
+        document.querySelector('.dropdown-content').onclick = (e) => e.stopPropagation();
 
         // --- Device Management ---
         function renderDevices() {
@@ -397,11 +456,31 @@
         function selectDevice(devUser) {
             selectedDevice = devUser;
             activeDeviceLabel.innerText = (devUser === 'current_device' ? 'Current Device' : devUser).toUpperCase();
-            cmdInput.disabled = false;
-            cmdInput.placeholder = `Send command to ${devUser}...`;
-            termPrompt.innerText = `${devUser.toLowerCase()}@relayserver ~ $ `;
+            
+            // Self-sending restriction check
+            const isSelf = (devUser === 'current_device' || devUser === userData.device_username);
+            const isAdmin = ["admin", "coder", "phone"].includes(userData.name.toLowerCase());
+            
+            if (isSelf && !isAdmin) {
+                cmdInput.disabled = true;
+                cmdInput.placeholder = `Cannot send commands to self...`;
+                termPrompt.innerText = `restricted@alfred ~ $ `;
+                appendLog(`[SECURITY] You cannot send commands to your own "Current Device".`, 'sys log-sys');
+            } else {
+                cmdInput.disabled = false;
+                cmdInput.placeholder = `Send command to ${devUser}...`;
+                termPrompt.innerText = `${devUser.toLowerCase()}@relayserver ~ $ `;
+            }
+            
             renderDevices();
-            cmdInput.focus();
+            if (!cmdInput.disabled) cmdInput.focus();
+            
+            // Generate QR for adding a device to this account
+            // Format: alfred://pair?account=NAME&device=SUGGESTED_NAME
+            const qrTarget = document.getElementById('qrTarget');
+            const pairUrl = `https://project-alfred-custom-gpt.vercel.app/signup?account=${userData.name}`;
+            qrTarget.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(pairUrl)}" alt="Pair QR">`;
+            
             appendLog(`Target switched to ${devUser}`, 'sys');
         }
 
