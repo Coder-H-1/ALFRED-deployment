@@ -9,7 +9,7 @@ import traceback
 # Add project root to path to import FILES modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from FILES.backend.db import init_db, register_user, authenticate, check_access, get_user_data, toggle_access, queue_command, get_pending_commands
+from FILES.backend.db import init_db, register_user, authenticate, check_access, get_user_data, toggle_access, queue_command, get_pending_commands, delete_device
 
 
 
@@ -186,7 +186,7 @@ def remove_device():
         return jsonify({"success": False, "error": "Device name required"}), 400
     
     # Block deleting 'current_device' if it's the only one (optional, but let's allow it as requested)
-    if db.delete_device(session['user_name'], device_username):
+    if delete_device(session['user_name'], device_username):
         return jsonify({"success": True})
     return jsonify({"success": False, "error": "Deletion failed"}), 500
 def execute():
