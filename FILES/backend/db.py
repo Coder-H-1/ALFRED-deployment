@@ -180,6 +180,22 @@ def queue_command(name, device_username, command_text):
         json.dump(queue, f)
     return True
 
+def delete_device(account_name, device_username):
+    """Deletes a device and its associated queue files."""
+    try:
+        devices_dir = os.path.join(DB_ROOT, account_name, "devices")
+        device_file = os.path.join(devices_dir, f"{device_username}.json")
+        queue_file = os.path.join(devices_dir, f"{device_username}_queue.json")
+        
+        if os.path.exists(device_file):
+            os.remove(device_file)
+        if os.path.exists(queue_file):
+            os.remove(queue_file)
+        return True
+    except Exception as e:
+        print(f"Error deleting device: {e}")
+        return False
+
 def get_pending_commands(name, device_username, api_key):
     """Retrieves and clears pending commands for a device. Requires auth."""
     if not check_access(name, device_username, api_key):
